@@ -33,8 +33,8 @@ download into the YOLO format this repo expects.
 ## Install
 
 ```bash
-git clone https://github.com/landrytiemani/LinearAttention-Weapon-Detection-EdgeAI.git
-cd LinearAttention-Weapon-Detection-EdgeAI
+git clone https://github.com/landrytiemani/cctv-weapon-backbone-benchmark.git
+cd cctv-weapon-backbone-benchmark
 pip install -r requirements.txt
 ```
 
