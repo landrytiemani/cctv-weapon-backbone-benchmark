@@ -106,30 +106,35 @@ PYTHONPATH=src python qualitative.py --n 50 --conf 0.15
 
 CCTV (ACF) test split, two classes (Handgun + Knife), `imgsz=640`. All seven
 detectors were trained and evaluated on a single **NVIDIA A100** GPU under the
-identical recipe above. Sorted by AP50 (from `results_acf/acf_comparison.csv`):
+identical recipe above. `AP50_H`/`AP50_K` are per-class AP50 (Handgun/Knife);
+`FPS` is single-image, end-to-end throughput at batch 1 on the A100. Sorted by
+mean AP50 (from `results_acf/acf_comparison.csv`):
 
-| Model | AP50 | AP50:95 | P | R | F1 | Params (M) | GFLOPs |
-|---|---|---|---|---|---|---|---|
-| **MobileViT-S (ours)** | **57.08** | **28.26** | 78.62 | 51.56 | **62.28** | 7.01 | 31.16 |
-| YOLOv8x | 54.23 | 20.82 | 86.02 | 43.75 | 58.00 | 61.60 | 226.70 |
-| YOLOv8n | 52.64 | 20.51 | 89.03 | 44.18 | 59.05 | 2.68 | 6.82 |
-| YOLOv8s | 52.44 | 22.55 | 87.47 | 41.02 | 55.85 | 9.83 | 23.35 |
-| EfficientViT-B1 (ours) | 46.96 | 20.43 | 82.27 | 42.88 | 56.38 | 11.21 | 22.81 |
-| YOLOv8m | 46.52 | 18.10 | 65.49 | 44.44 | 52.95 | 23.20 | 67.43 |
-| YOLOv8l | 44.82 | 20.79 | 81.90 | 45.14 | 58.20 | 39.43 | 145.19 |
+| Model | AP50_H | AP50_K | AP50 | AP50:95 | F1 | P | R | FPS | Params (M) | GFLOPs |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **MobileViT-S (ours)** | **48.56** | **65.60** | **57.08** | **28.26** | **62.28** | 78.62 | **51.56** | 73.6 | 7.01 | 31.16 |
+| YOLOv8x | 47.35 | 61.12 | 54.23 | 20.82 | 58.00 | 86.02 | 43.75 | 94.7 | 61.60 | 226.70 |
+| YOLOv8n | 45.52 | 59.77 | 52.64 | 20.51 | 59.05 | **89.03** | 44.18 | **138.9** | **2.68** | **6.82** |
+| YOLOv8s | 42.80 | 62.07 | 52.44 | 22.55 | 55.85 | 87.47 | 41.02 | 137.5 | 9.83 | 23.35 |
+| EfficientViT-B1 (ours) | 44.67 | 49.25 | 46.96 | 20.43 | 56.38 | 82.27 | 42.88 | 75.0 | 11.21 | 22.81 |
+| YOLOv8m | 42.48 | 50.57 | 46.52 | 18.10 | 52.95 | 65.49 | 44.44 | 112.6 | 23.20 | 67.43 |
+| YOLOv8l | 44.65 | 44.98 | 44.82 | 20.79 | 58.20 | 81.90 | 45.14 | 98.2 | 39.43 | 145.19 |
 
-The **MobileViT-S** backbone gives the best AP50, AP50:95 and F1 while using
-**~9× fewer parameters** and **~7× fewer FLOPs** than the strongest CNN baseline
-(YOLOv8x), making it the most favourable accuracy/efficiency trade-off for
-edge-oriented CCTV weapon detection. On-device latency (e.g. Jetson FPS) was not
-measured here and is left to deployment.
+The **MobileViT-S** backbone gives the best mean AP50, AP50:95, F1 **and the best
+per-class AP50 on both classes** while using **~9× fewer parameters** and **~7×
+fewer FLOPs** than the strongest CNN baseline (YOLOv8x) — the most favourable
+accuracy/efficiency trade-off here. Note the **FPS/GFLOPs mismatch**: the ViT
+backbones have the fewest FLOPs but the lowest wall-clock FPS (their attention /
+patch ops are memory-bandwidth-bound and unfused under PyTorch eager mode);
+TensorRT/ONNX fusion is expected to narrow this gap. On-device (Jetson) latency is
+left to deployment.
 
 ## Known limitations
 
-- **Knife is rare in CCTV.** The US-CCTV set is gun-centric; knife instances are
-  few. The benchmark is therefore **handgun-dominated**, and the Knife column
-  should be read as indicative only (small support), not as a robust per-class
-  result. Treat the headline numbers as a handgun-detection benchmark.
+- **Knife has fewer instances than Handgun** (the US-CCTV set is gun-centric), but
+  it is in fact the **better-detected** class — knife AP50 exceeds handgun AP50 for
+  every backbone. Its per-class numbers are reported with that smaller support in
+  mind, not treated as unreliable.
 - **EfficientFormerV2** is *not* in the default pipeline: its resolution-coupled
   attention bias is incompatible with 640×640 detection in current `timm`
   (token-count vs attention-bias mismatch). It is documented as
