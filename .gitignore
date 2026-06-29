@@ -1,0 +1,28 @@
+# ---- Data (never commit; rebuild locally with prepare_acf.py) ----
+data/
+*.zip
+US-Real-time-gun-detection-in-CCTV-An-open-problem-dataset/
+
+# ---- Training outputs / checkpoints / figures (large; regenerate) ----
+results/
+results_*/        # results_acf, etc.
+runs/
+*.pt
+*.onnx
+*.engine
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+
+# ---- OS / editors / machine-specific junk ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*-DESKTOP-*.*
