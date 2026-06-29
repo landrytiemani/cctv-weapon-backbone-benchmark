@@ -104,14 +104,25 @@ PYTHONPATH=src python qualitative.py --n 50 --conf 0.15
 
 ## Results
 
-Populate from `results_acf/acf_comparison.csv` after running `evaluate.py`:
+CCTV (ACF) test split, two classes (Handgun + Knife), `imgsz=640`. All seven
+detectors were trained and evaluated on a single **NVIDIA A100** GPU under the
+identical recipe above. Sorted by AP50 (from `results_acf/acf_comparison.csv`):
 
 | Model | AP50 | AP50:95 | P | R | F1 | Params (M) | GFLOPs |
 |---|---|---|---|---|---|---|---|
-| _to be filled_ | | | | | | | |
+| **MobileViT-S (ours)** | **57.08** | **28.26** | 78.62 | 51.56 | **62.28** | 7.01 | 31.16 |
+| YOLOv8x | 54.23 | 20.82 | 86.02 | 43.75 | 58.00 | 61.60 | 226.70 |
+| YOLOv8n | 52.64 | 20.51 | 89.03 | 44.18 | 59.05 | 2.68 | 6.82 |
+| YOLOv8s | 52.44 | 22.55 | 87.47 | 41.02 | 55.85 | 9.83 | 23.35 |
+| EfficientViT-B1 (ours) | 46.96 | 20.43 | 82.27 | 42.88 | 56.38 | 11.21 | 22.81 |
+| YOLOv8m | 46.52 | 18.10 | 65.49 | 44.44 | 52.95 | 23.20 | 67.43 |
+| YOLOv8l | 44.82 | 20.79 | 81.90 | 45.14 | 58.20 | 39.43 | 145.19 |
 
-Edge latency (e.g. Jetson-Nano FPS) is hardware-dependent and reported separately
-from your own device measurements.
+The **MobileViT-S** backbone gives the best AP50, AP50:95 and F1 while using
+**~9× fewer parameters** and **~7× fewer FLOPs** than the strongest CNN baseline
+(YOLOv8x), making it the most favourable accuracy/efficiency trade-off for
+edge-oriented CCTV weapon detection. On-device latency (e.g. Jetson FPS) was not
+measured here and is left to deployment.
 
 ## Known limitations
 
