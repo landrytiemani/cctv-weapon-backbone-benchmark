@@ -1,0 +1,52 @@
+# EfficientFormerV2-S2 + YOLOv8 detection head (competitor family B)
+# Backbone: Snap EfficientFormerV2-S2 (Li et al., 2023 — successor of L1)
+# Source: timm.create_model("efficientformerv2_s2", pretrained=True,
+#                           features_only=True)
+#
+# Why V2 instead of L1: EfficientFormer-L1 has hardcoded 7x7 positional
+# attention biases (only valid at imgsz=224), and crashes on any other
+# resolution. EfficientFormerV2 redesigned attention to support arbitrary
+# input sizes and is the direct evolution of the same line of work, so it
+# is the correct comparator for an arbitrary-resolution edge detection task.
+#
+# Expected per-stage output channels (verify with
+#   python scripts/discover_timm_channels.py efficientformerv2_s2 ):
+#   stage_idx=0  stride=/4   ch=32
+#   stage_idx=1  stride=/8   ch=64
+#   stage_idx=2  stride=/16  ch=144
+#   stage_idx=3  stride=/32  ch=288
+
+nc: 2
+depth_multiple: 1.0
+width_multiple: 1.0
+
+# ============================================================
+# Backbone: EfficientFormerV2-S2 via timm
+# ============================================================
+backbone:
+  - [-1, 1, TimmStem, [32, "efficientformerv2_s2", True]]  # 0: /4,   c=32   (P2)
+  - [-1, 1, TimmStage, [64, 1]]                            # 1: /8,   c=64   (P3)
+  - [-1, 1, TimmStage, [144, 2]]                           # 2: /16,  c=144  (P4)
+  - [-1, 1, TimmStage, [288, 3]]                           # 3: /32,  c=288  (P5)
+
+# ============================================================
+# Head: PANet + Detect (YOLOv8s-scale, 128/256/512)
+# ============================================================
+head:
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]       # 4
+  - [[-1, 2], 1, Concat, [1]]                        # 5  cat(up(P5), P4) = 288+144 = 432
+  - [-1, 2, C2f, [256]]                              # 6
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]       # 7
+  - [[-1, 1], 1, Concat, [1]]                        # 8  cat(up, P3) = 256+64 = 320
+  - [-1, 2, C2f, [128]]                              # 9  (P3 scale)
+
+  - [-1, 1, Conv, [128, 3, 2]]                       # 10
+  - [[-1, 6], 1, Concat, [1]]                        # 11 cat(down, td1) = 128+256 = 384
+  - [-1, 2, C2f, [256]]                              # 12 (P4 scale)
+
+  - [-1, 1, Conv, [256, 3, 2]]                       # 13
+  - [[-1, 3], 1, Concat, [1]]                        # 14 cat(down, P5) = 256+288 = 544
+  - [-1, 2, C2f, [512]]                              # 15 (P5 scale)
+
+  - [[9, 12, 15], 1, Detect, [nc]]                   # 16

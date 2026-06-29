@@ -1,0 +1,44 @@
+# EfficientViT-B3 + YOLOv8 detection head
+# Backbone: MIT Han Lab EfficientViT-B3 (LiteMLA, O(n) linear attention)
+# Neck+Head: YOLOv8-large-scale PANet + Detect (256/512/512 channels)
+#
+# B3 config: width=[32,64,128,256,512], depth=[1,4,6,6,9], head_dim=32
+# ImageNet-1K Top-1: 83.50% (pretrained weights from MIT Han Lab)
+
+nc: 2
+depth_multiple: 1.0
+width_multiple: 1.0
+
+# ============================================================
+# Backbone: EfficientViT-B3
+# ============================================================
+# Channel flow:    3 -> 32 -> 64 -> 128 -> 256 -> 512
+# Spatial stride:  /2    /4    /8    /16    /32
+backbone:
+  - [-1, 1, EfficientViTStem, [32, 1]]                          # 0: 32ch, stride 2
+  - [-1, 1, EfficientViTLocalStage, [64, 4, 4]]                 # 1: 64ch, stride 4
+  - [-1, 1, EfficientViTLocalStage, [128, 6, 4]]                # 2: 128ch, stride 8  (P3)
+  - [-1, 1, EfficientViTAttentionStage, [256, 6, 32, 4]]        # 3: 256ch, stride 16 (P4)
+  - [-1, 1, EfficientViTAttentionStage, [512, 9, 32, 4]]        # 4: 512ch, stride 32 (P5)
+
+# ============================================================
+# Head: YOLOv8-large-scale PANet + Detect
+# ============================================================
+head:
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]       # 5
+  - [[-1, 3], 1, Concat, [1]]                        # 6
+  - [-1, 2, C2f, [512]]                              # 7  (P4 scale)
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]       # 8
+  - [[-1, 2], 1, Concat, [1]]                        # 9
+  - [-1, 2, C2f, [256]]                              # 10 (P3 scale)
+
+  - [-1, 1, Conv, [256, 3, 2]]                       # 11
+  - [[-1, 7], 1, Concat, [1]]                        # 12
+  - [-1, 2, C2f, [512]]                              # 13 (P4 scale)
+
+  - [-1, 1, Conv, [512, 3, 2]]                       # 14
+  - [[-1, 4], 1, Concat, [1]]                        # 15
+  - [-1, 2, C2f, [512]]                              # 16 (P5 scale)
+
+  - [[10, 13, 16], 1, Detect, [nc]]                  # 17

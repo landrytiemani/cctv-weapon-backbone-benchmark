@@ -1,0 +1,67 @@
+# EfficientViT-YOLOv8 model configuration (wide neck variant)
+# Backbone: MIT Han Lab EfficientViT-B1 (LiteMLA, O(n) linear attention)
+# Neck+Head: YOLOv8s-scale PANet + Detect (128/256/512 channels)
+#
+# Backbone pretrained: ImageNet-1K (79.39% Top-1)
+# Neck+Head: trained from scratch (COCO neck incompatible with EfficientViT features)
+#
+# B1 backbone: width=[16,32,64,128,256], depth=[1,2,3,3,4], head_dim=16
+# Wide neck: 2x wider than YOLOv8n neck, matching YOLOv8s detection capacity
+#
+# Usage:
+#   from models.efficientvit_modules import register_efficientvit_modules
+#   register_efficientvit_modules()
+#   model = YOLO("configs/efficientvit_yolov8.yaml")
+
+nc: 2  # number of classes (Handgun, Knife)
+depth_multiple: 1.0
+width_multiple: 1.0
+
+# ============================================================
+# Backbone: EfficientViT-B1
+# ============================================================
+# Channel flow:    3 -> 16 -> 32 -> 64 -> 128 -> 256
+# Spatial stride:  /2    /4    /8    /16    /32
+# Stages 0-2: Local (DSConv/MBConv) | Stages 3-4: LiteMLA attention
+backbone:
+  # Stem: Conv + 1 residual DSConv block
+  - [-1, 1, EfficientViTStem, [16, 1]]                          # 0: 16ch, stride 2
+
+  # Stage 1: 2 MBConv blocks (first downsamples)
+  - [-1, 1, EfficientViTLocalStage, [32, 2, 4]]                 # 1: 32ch, stride 4
+
+  # Stage 2: 3 MBConv blocks (first downsamples) -> P3
+  - [-1, 1, EfficientViTLocalStage, [64, 3, 4]]                 # 2: 64ch, stride 8
+
+  # Stage 3: MBConv downsample + 3 LiteMLA blocks -> P4
+  - [-1, 1, EfficientViTAttentionStage, [128, 3, 16, 4]]        # 3: 128ch, stride 16
+
+  # Stage 4: MBConv downsample + 4 LiteMLA blocks -> P5
+  - [-1, 1, EfficientViTAttentionStage, [256, 4, 16, 4]]        # 4: 256ch, stride 32
+
+# ============================================================
+# Head: Wide PANet Neck (YOLOv8s-scale) + Detect
+# ============================================================
+# Wider neck channels (128/256/512) give enough capacity to match
+# YOLOv8s detection quality with the EfficientViT backbone.
+head:
+  # --- Top-down path ---
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]       # 5:  up P5 (256ch)
+  - [[-1, 3], 1, Concat, [1]]                        # 6:  cat(up(P5), P4) = 384
+  - [-1, 2, C2f, [256]]                              # 7:  C2f(384->256) at P4 scale
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]       # 8:  up (256ch)
+  - [[-1, 2], 1, Concat, [1]]                        # 9:  cat(up, P3) = 320
+  - [-1, 2, C2f, [128]]                              # 10: C2f(320->128) at P3 scale
+
+  # --- Bottom-up path ---
+  - [-1, 1, Conv, [128, 3, 2]]                       # 11: down (128->128, s=2)
+  - [[-1, 7], 1, Concat, [1]]                        # 12: cat(down, td1) = 384
+  - [-1, 2, C2f, [256]]                              # 13: C2f(384->256) at P4 scale
+
+  - [-1, 1, Conv, [256, 3, 2]]                       # 14: down (256->256, s=2)
+  - [[-1, 4], 1, Concat, [1]]                        # 15: cat(down, P5) = 512
+  - [-1, 2, C2f, [512]]                              # 16: C2f(512->512) at P5 scale
+
+  # --- Detection head ---
+  - [[10, 13, 16], 1, Detect, [nc]]                  # 17: Detect (P3=128, P4=256, P5=512)
